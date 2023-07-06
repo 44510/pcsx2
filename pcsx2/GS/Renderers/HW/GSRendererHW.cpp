@@ -3848,7 +3848,7 @@ void GSRendererHW::EmulateBlending(bool& DATE_PRIMID, bool& DATE_BARRIER, bool& 
 		{
 			m_conf.ps.blend_hw = 1;
 		}
-		else if (blend_flag & (BLEND_HW_CLR2))
+		else if (blend_flag & BLEND_HW_CLR2)
 		{
 			if (m_conf.ps.blend_c == 2)
 				m_conf.cb_ps.TA_MaxDepth_Af.a = static_cast<float>(AFIX) / 128.0f;
@@ -3857,6 +3857,13 @@ void GSRendererHW::EmulateBlending(bool& DATE_PRIMID, bool& DATE_BARRIER, bool& 
 		}
 		else if (blend_flag & BLEND_HW_CLR3)
 		{
+			if (!features.texture_barrier && (GSConfig.AccurateBlendingUnit >= AccBlendLevel::High))
+			{
+				if (COLCLAMP.CLAMP == 0)
+					m_conf.ps.hdr = 2;
+				else
+					m_conf.ps.hdr = 3;
+			}
 			m_conf.ps.blend_hw = 3;
 		}
 
