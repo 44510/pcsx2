@@ -371,6 +371,105 @@ void GSTextureCache::DirtyRectByPage(u32 sbp, u32 spsm, u32 sbw, Target* t, GSVe
 	if (src_r.rempty())
 		return;
 
+	GSLocalMemory::psm_t& src_info = GSLocalMemory::m_psm[spsm];
+	const GSLocalMemory::psm_t& dst_info = GSLocalMemory::m_psm[t->m_TEX0.PSM];
+
+	const int dst_width = std::max(t->m_TEX0.TBW * 64, 64U);
+	// Might be translate the original rect from PSMT8 <> C32.
+	int src_width = std::max(sbw * 64, 64U);
+	int src_psm = spsm;
+
+	// Pages aligned.
+	const GSVector4i page_mask(GSVector4i((src_info.pgs.x - 1), (src_info.pgs.y - 1)).xyxy());
+	const GSVector4i page_masked_rect(src_r & ~page_mask);
+
+	const bool page_aligned_rect = page_masked_rect.eq(src_r);
+
+	// Blocks aligned.
+	const GSVector4i block_mask(GSVector4i((src_info.bs.x - 1), (src_info.bs.y - 1)).xyxy());
+	const GSVector4i block_masked_rect(src_r & ~block_mask);
+
+	const bool block_aligned_rect = block_masked_rect.eq(src_r);
+
+	// One is the PSMCT32 swizzle the other is PSMT8 Swizzle, they are block level compatible.
+	const bool C32_T8_match = std::abs(dst_info.bpp - src_info.bpp) == 24;
+
+	int block_offset = static_cast<int>(sbp) - static_cast<int>(t->m_TEX0.TBP0);
+
+	GSVector4i adjusted_rect = src_r;
+
+	// When converting between PSMT8 <> C32 if the width divides nicely, we can translate it.
+	// We can then pretend the source format matches the destination.
+	if (C32_T8_match)
+	{
+		// Src is 8bit, width needs to be in multiples of 128 pixels to work.
+		if (dst_info.bpp == 32 && !(src_width & 127))
+		{
+			adjusted_rect = GSVector4i(adjusted_rect.x / 2, adjusted_rect.y / 2, adjusted_rect.z / 2, adjusted_rect.w / 2);
+			src_width = std::max(src_width / 2, 64);
+			src_psm = t->m_TEX0.PSM;
+			src_info = GSLocalMemory::m_psm[src_psm];
+		}
+		else if(dst_info.bpp == 8)
+		{
+			adjusted_rect = GSVector4i(adjusted_rect.x * 2, adjusted_rect.y * 2, adjusted_rect.z * 2, adjusted_rect.w * 2);
+			src_width *= 2;
+			src_psm = t->m_TEX0.PSM;
+			src_info = GSLocalMemory::m_psm[src_psm];
+		}
+	}
+
+	const int block_width = (src_width / src_info.bs.x);
+	int horizontal_block_offset = block_offset % block_width;
+	int vertical_block_offset = (block_offset - horizontal_block_offset) / block_width;
+
+	const bool matched_format = (src_info.bpp == dst_info.bpp);
+	const bool block_matched_format = matched_format && block_aligned_rect;
+
+	// Adjust incoming rect to nearest vertical, save horizontal offset for later
+	if (block_matched_format && block_offset)
+	{
+		if (horizontal_block_offset)
+		{
+			// Allow horozintal adjustment as long as there is space to move it to the left or right.
+			// If the blocks move it outside the width to either side, we will have to translate it later.
+			if ((horizontal_block_offset < 0 && adjusted_rect.x >= (std::abs(horizontal_block_offset) * src_info.bs.x)) ||
+				(horizontal_block_offset > 0 && (sbw * 64) > ((std::abs(horizontal_block_offset) * src_info.bs.x) + adjusted_rect.w)))
+			{
+				adjusted_rect = (adjusted_rect + GSVector4i(horizontal_block_offset, 0).xyxy()).max_i32(GSVector4i(0));
+				horizontal_block_offset = 0;
+			}
+		}
+
+		adjusted_rect = (adjusted_rect + GSVector4i(0, vertical_block_offset).xyxy()).max_i32(GSVector4i(0));
+	}
+
+	//const GSVector4i rect_pages = GSVector4i(adjusted_rect.x / src_info.pgs.x, adjusted_rect.y / src_info.pgs.y, (adjusted_rect.z + src_info.pgs.x - 1) / src_info.pgs.x, (adjusted_rect.w + (src_info.pgs.y - 1)) / src_info.pgs.y);
+
+	const int src_pg_width = std::max((src_width + (src_info.pgs.x - 1)) / src_info.pgs.x, 1);
+	const int dst_pg_width = std::max((dst_width + (dst_info.pgs.x - 1)) / dst_info.pgs.x, 1);
+
+	// Match the space for the width of the buffer, based on 64 pixels (1 page) for all formats, except PSMT8/4 which is half.
+	// So multiply the others when comparing, so we don't lose "off by 1 width" comparison.
+	int adjusted_src_width = (src_info.bpp >= 16) ? src_width * 2 : src_width;
+	int adjusted_dst_width = (dst_info.bpp >= 16) ? dst_width * 2 : dst_width;
+
+	const bool width_okay = (adjusted_src_width == adjusted_dst_width) || (adjusted_rect.z < dst_width && adjusted_rect.w < src_info.pgs.x);
+	//const bool bp_page_aligned_bp = ((sbp & ~((1 << 5) - 1)) == sbp) || sbp == t->m_TEX0.TBP0;
+
+
+	// Pick if we can do the fast or slow way
+	if ((matched_format || page_aligned_rect || block_matched_format) && width_okay)
+	{
+	}
+	else // Slow way..
+	{
+	}
+
+}
+/*
+void GSTextureCache::DirtyRectByPage(u32 sbp, u32 spsm, u32 sbw, Target* t, GSVector4i src_r)
+{
 	const GSVector2i src_page_size = GSLocalMemory::m_psm[spsm].pgs;
 	const GSVector2i dst_page_size = GSLocalMemory::m_psm[t->m_TEX0.PSM].pgs;
 	const u32 src_bw = std::max(1U, sbw) * 64;
@@ -532,7 +631,7 @@ void GSTextureCache::DirtyRectByPage(u32 sbp, u32 spsm, u32 sbw, Target* t, GSVe
 	}
 	new_rect = new_rect.rintersect(t->m_valid);
 	AddDirtyRectTarget(t, new_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
-}
+}*/
 
 __ri static GSTextureCache::Source* FindSourceInMap(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA,
 	const GSLocalMemory::psm_t& psm_s, const u32* clut, const GSTexture* gpu_clut, const GSVector2i& compare_lod,
