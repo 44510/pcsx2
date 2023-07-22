@@ -576,8 +576,10 @@ void GSTextureCache::DirtyRectByPage(u32 sbp, u32 spsm, u32 sbw, Target* t, GSVe
 	// Pick if we can do the fast or slow way
 	if ((matched_format || page_aligned_rect || block_matched_format) && width_okay && sbp == target_bp)
 	{
+		in_rect = in_rect.rintersect(t->m_valid);
 		//DevCon.Warning("Quick x %d y %d z %d w %d valid x %d y %d z %d w %d", in_rect.x, in_rect.y, in_rect.z, in_rect.w, t->m_valid.x, t->m_valid.y, t->m_valid.z, t->m_valid.w);
-		AddDirtyRectTarget(t, in_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
+		if (!in_rect.rempty())
+			AddDirtyRectTarget(t, in_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
 	}
 	else // Slow way..
 	{
@@ -617,10 +619,8 @@ void GSTextureCache::DirtyRectByPage(u32 sbp, u32 spsm, u32 sbw, Target* t, GSVe
 					new_rect.w = new_rect.y + height;
 					new_rect = new_rect.rintersect(t->m_valid);
 
-					if (new_rect.rempty())
-						break;
-
-					AddDirtyRectTarget(t, new_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
+					if (!new_rect.rempty())
+						AddDirtyRectTarget(t, new_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
 
 					drawn++;
 					if (drawn == page_draw)
@@ -665,10 +665,8 @@ void GSTextureCache::DirtyRectByPage(u32 sbp, u32 spsm, u32 sbw, Target* t, GSVe
 					new_rect.w = new_rect.y + height;
 					new_rect = new_rect.rintersect(t->m_valid);
 
-					if (new_rect.rempty())
-						break;
-
-					AddDirtyRectTarget(t, new_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
+					if (!new_rect.rempty())
+						AddDirtyRectTarget(t, new_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
 
 					if (overflow)
 					{
@@ -678,7 +676,9 @@ void GSTextureCache::DirtyRectByPage(u32 sbp, u32 spsm, u32 sbw, Target* t, GSVe
 						new_rect.y = (page / dst_pg_width) * dst_info.pgs.y;
 						new_rect.w = new_rect.y + height;
 						new_rect = new_rect.rintersect(t->m_valid);
-						AddDirtyRectTarget(t, new_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
+
+						if (!new_rect.rempty())
+							AddDirtyRectTarget(t, new_rect, t->m_TEX0.PSM, t->m_TEX0.TBW, rgba);
 					}
 
 					drawn++;
