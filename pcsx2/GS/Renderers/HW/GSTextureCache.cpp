@@ -374,9 +374,9 @@ void GSTextureCache::DirtyRectByPage(u32 sbp, u32 spsm, u32 sbw, Target* t, GSVe
 
 	GSLocalMemory::psm_t* src_info = &GSLocalMemory::m_psm[spsm];
 	const GSLocalMemory::psm_t& dst_info = GSLocalMemory::m_psm[t->m_TEX0.PSM];
-	DevCon.Warning("Invalidate %x->%x PSM %x BW %d valid x %d y %d z %d w %d - bp %x->%x PSM %x BW %d rect x %d y %d z %d w %d",
+	/*DevCon.Warning("Invalidate %x->%x PSM %x BW %d valid x %d y %d z %d w %d - bp %x->%x PSM %x BW %d rect x %d y %d z %d w %d",
 		t->m_TEX0.TBP0, t->UnwrappedEndBlock(), t->m_TEX0.PSM, t->m_TEX0.TBW, t->m_valid.x, t->m_valid.y, t->m_valid.z, t->m_valid.w,
-		sbp, GSLocalMemory::GetEndBlockAddress(sbp, sbw, spsm, src_r), spsm, sbw, src_r.x, src_r.y, src_r.z, src_r.w);
+		sbp, GSLocalMemory::GetEndBlockAddress(sbp, sbw, spsm, src_r), spsm, sbw, src_r.x, src_r.y, src_r.z, src_r.w);*/
 	if (sbp < t->m_end_block && t->m_end_block < t->m_TEX0.TBP0)
 		sbp += 0x4000;
 
